@@ -4,10 +4,12 @@ var stationHTML = '';
 var stationDiv = document.getElementById('stationData');
 var isLocation = false;
 
+/* Converting degrees to radians ahead of time for easier Haversine calculations */
 const degToRad = function (numDegree) {
 	return numDegree * Math.PI / 180;
 }
 
+/* Use Haversine equation to compute distance between two Longitude/Latitude sets */
 const haversine = function (userLat, userLon, stationLat, stationLon) {
 	var radius = 6371;
 	var userLatRad = degToRad(userLat);
@@ -41,10 +43,13 @@ const checkJson = function(method, url) {
 }
 
 const getStationsRaw = async function(userLat, userLon, locationStatus) {
+	/* Ping Station Status first */
 	var statusPull = await checkJson('GET','https://gbfs.citibikenyc.com/gbfs/en/station_status.json');
+	/* Get general Station Information */
 	var stationPull = await checkJson('GET','https://gbfs.citibikenyc.com/gbfs/en/station_information.json');
 	var statusData = statusPull['data'];
 	var statusPullRaw = statusData['stations'];
+	/* Gets a list of all active stations in the system along with bike and dock availability for each */
 	for (var key in statusPullRaw) {
 		var currentStationStatus = statusPullRaw[key];
 		var currentRenting = currentStationStatus['is_renting'];
@@ -61,6 +66,7 @@ const getStationsRaw = async function(userLat, userLon, locationStatus) {
 		}
 	var stationPullData = stationPull['data'];
 	var stationPullRaw = stationPullData['stations'];
+	/* Takes the station status object from above, pulls lon/lat and station names for each station, and puts all the information together as on big object */
 	for (var statusKey in statusRaw) {
 		var currentStatus = statusRaw[statusKey];
 		var currentStatusID = currentStatus['station_id'];
@@ -79,26 +85,20 @@ const getStationsRaw = async function(userLat, userLon, locationStatus) {
 				}
 				if (locationStatus == true) {
 					currentJson['distance'] = haversine(userLat, userLon, currentJson['lat'], currentJson['lon']);
-				} else {
-					currentJson['battParkDist'] = haversine(40.7018801,-74.0162397,currentJson['lat'],-74.0162397)
 				}
 				stationRaw.push(currentJson);
 			}
 
 		}
 	}
+	/* Not everyone is going to allow current location to be tracked. This provides a fallback: sort by alphabetical order. */
 	if (locationStatus == true) {
 		stationRaw.sort((a,b) => (a.distance > b.distance) ? 1 : -1)
 	}
 	else {
-		for (var latTestKey in stationRaw) {
-			var latStation = stationRaw[latTestKey]
-			if (latStation['lat'] < 40.7018801) {
-				latStation['battParkDist'] *= -1;
-			}
-		}
-		stationRaw.sort((a,b) => (a.battParkDist < b.battParkDist) ? 1 : -1)
+		stationRaw.sort((a,b) => (a.name > b.name) ? 1 : -1)
 	}
+	/* Takes all the information from the combined status/information objects and converts to blocks of HTML to be displayed on webapp */
 	for (key in stationRaw) {
 		var currentStationFinal = stationRaw[key];
 		var currentName = currentStationFinal['name'];
@@ -115,10 +115,9 @@ const getStationsRaw = async function(userLat, userLon, locationStatus) {
 	}
 
 	stationDiv.innerHTML = stationHTML;
-	console.log(statusRaw);
-	console.log(stationRaw);
 	}
 
+/* Requests the user's current position or instructs app to use fallback */
 currentPosition()
 	.then((position) => {
 		var coordsRaw = position['coords'];
